@@ -1,5 +1,6 @@
 package com.github.paicoding.forum.service.user.service.user;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.github.paicoding.forum.api.model.context.ReqInfoContext;
 import com.github.paicoding.forum.api.model.exception.ExceptionUtil;
 import com.github.paicoding.forum.api.model.vo.constants.StatusEnum;
@@ -7,8 +8,10 @@ import com.github.paicoding.forum.api.model.vo.user.UserPwdLoginReq;
 import com.github.paicoding.forum.api.model.vo.user.UserSaveReq;
 import com.github.paicoding.forum.service.user.repository.dao.UserAiDao;
 import com.github.paicoding.forum.service.user.repository.dao.UserDao;
+import com.github.paicoding.forum.service.user.repository.dao.UserMapPasswordDao;
 import com.github.paicoding.forum.service.user.repository.entity.UserAiDO;
 import com.github.paicoding.forum.service.user.repository.entity.UserDO;
+import com.github.paicoding.forum.service.user.repository.entity.UserMapPasswordDO;
 import com.github.paicoding.forum.service.user.service.LoginService;
 import com.github.paicoding.forum.service.user.service.RegisterService;
 import com.github.paicoding.forum.service.user.service.UserAiService;
@@ -39,6 +42,9 @@ public class LoginServiceImpl implements LoginService {
     private UserAiDao userAiDao;
 
     @Autowired
+    private UserMapPasswordDao userMapPasswordDao;
+
+    @Autowired
     private UserSessionHelper userSessionHelper;
     @Autowired
     private StarNumberHelper starNumberHelper;
@@ -57,6 +63,7 @@ public class LoginServiceImpl implements LoginService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -125,6 +132,40 @@ public class LoginServiceImpl implements LoginService {
         return userSessionHelper.genSession(userId);
     }
 
+    /**
+     *
+     * @param username 用户名
+     * @param lat 经度
+     * @param lng 维度
+     * @return
+     */
+    @Override
+    public String loginByUserMap(String username, double lat, double lng) {
+        UserDO user = userDao.getUserByUserName(username);
+        if (user == null) {
+            throw ExceptionUtil.of(StatusEnum.USER_NOT_EXISTS, "userName=" + username);
+        }
+        Long userid = user.getId();
+        QueryWrapper<UserMapPasswordDO> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userid);
+        UserMapPasswordDO userMapPasswordDO = userMapPasswordDao.getOne(queryWrapper);
+        if (userMapPasswordDO == null) {
+            throw ExceptionUtil.of(StatusEnum.USER_NOT_EXISTS, "userName=" + username);
+        }
+        if (haversine(lat, lng, userMapPasswordDO.getLat(), userMapPasswordDO.getLng()) > 0.2) {
+            throw ExceptionUtil.of(StatusEnum.USER_PWD_ERROR);
+        }
+        Long userId = user.getId();
+        // 登录成功，返回对应的session
+        ReqInfoContext.getReqInfo().setUserId(userId);
+        return userSessionHelper.genSession(userId);
+    }
+
+    @Override
+    public boolean registerByMap(double lat, double lng) {
+        Long userid = ReqInfoContext.getReqInfo().getUserId();
+        return userMapPasswordDao.saveOrUpdateUser(userid, lat, lng);
+    }
 
     /**
      * 用户名密码方式登录，若用户不存在，则进行注册
@@ -200,5 +241,27 @@ public class LoginServiceImpl implements LoginService {
             // 填写的邀请码不对, 找不到对应的用户
             throw ExceptionUtil.of(StatusEnum.UNEXPECT_ERROR, "非法的邀请码【" + starNumber + "】");
         }
+    }
+
+    private double haversine(double lat1, double lon1, double lat2, double lon2) {
+        // 地球半径（单位：公里）
+        double R = 6371.0;
+
+        // 将经纬度从度转换为弧度
+        lat1 = Math.toRadians(lat1);
+        lon1 = Math.toRadians(lon1);
+        lat2 = Math.toRadians(lat2);
+        lon2 = Math.toRadians(lon2);
+
+        // 计算经纬度差
+        double dlat = lat2 - lat1;
+        double dlon = lon2 - lon1;
+
+        // 哈弗辛公式
+        double a = Math.pow(Math.sin(dlat / 2), 2) + Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin(dlon / 2), 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        // 计算距离
+        return R * c;
     }
 }

@@ -44,6 +44,22 @@ public interface LoginService {
     String loginByUserPwd(String username, String password);
 
     /**
+     * 地图密码方式登录
+     * @param username
+     * @param lat
+     * @param lng
+     * @return
+     */
+    String loginByUserMap(String username, double lat, double lng);
+
+    /**
+     * 地图密码注册
+     * @param lat
+     * @param lng
+     * @return
+     */
+    boolean registerByMap(double lat, double lng);
+    /**
      * 注册登录，并绑定对应的星球、邀请码
      *
      * @param loginReq 登录信息

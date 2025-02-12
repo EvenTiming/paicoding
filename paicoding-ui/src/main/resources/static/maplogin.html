@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet 地图选点功能</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+        .input-container {
+            margin: 20px 0;
+        }
+        #username {
+            width: 200px;
+            padding: 5px;
+        }
+        #loginBtn {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h1>点击地图选点并登录</h1>
+
+<!-- 用户名输入框 -->
+<div class="input-container">
+    <label for="username">请输入用户名：</label>
+    <input type="text" id="username" placeholder="请输入用户名" />
+</div>
+
+<!-- 登录按钮 -->
+<button id="loginBtn">登录并提交</button>
+
+<div id="map"></div>
+
+<script>
+    // 初始化地图，设定中心坐标和缩放级别
+    var map = L.map('map').setView([51.505, -0.09], 13); // 默认的经纬度和缩放级别
+
+    // 添加 OpenStreetMap 瓦片图层
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    var currentMarker = null;  // 用于保存当前选中的标记
+    var selectedLat = null;
+    var selectedLng = null;
+
+    // 监听点击事件，获取点击位置的经纬度
+    map.on('click', function(e) {
+        var lat = e.latlng.lat;  // 获取点击位置的纬度
+        var lng = e.latlng.lng;  // 获取点击位置的经度
+
+        // 获取用户名
+        var username = document.getElementById('username').value;
+
+        if (!username) {
+            alert("请输入用户名！");
+            return;
+        }
+
+        // 如果当前已经有标记，则移除之前的标记
+        if (currentMarker) {
+            map.removeLayer(currentMarker);
+        }
+
+        // 添加新的标记
+        currentMarker = L.marker([lat, lng]).addTo(map)
+            .bindPopup("用户名: " + username + "<br>选中的坐标: " + lat.toFixed(5) + ", " + lng.toFixed(5))
+            .openPopup();
+
+        // 保存选中的经纬度
+        selectedLat = lat;
+        selectedLng = lng;
+    });
+
+    // 登录并提交按钮的点击事件
+    document.getElementById('loginBtn').addEventListener('click', function() {
+        var username = document.getElementById('username').value;
+
+        if (!username) {
+            alert("请输入用户名！");
+            return;
+        }
+
+        if (selectedLat === null || selectedLng === null) {
+            alert("请先点击地图选择一个点！");
+            return;
+        }
+
+        // 将经纬度和用户名发送到后端
+        var data = {
+            username: username,
+            lat: selectedLat,
+            lng: selectedLng
+        };
+
+        var url = `http://localhost:8080/login/map?username=${username}&lat=${selectedLat}&lng=${selectedLng}`;
+
+        fetch(url, {
+            method: 'GET'
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log('成功:', data);
+                // Check if the result is true
+                if (data.result === true) {
+                    // Redirect to localhost:8080
+                    window.location.href = 'http://localhost:8080';
+                }
+            })
+            .catch((error) => console.error('错误:', error));
+    });
+</script>
+
+</body>
+</html>
